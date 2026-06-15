@@ -95,21 +95,33 @@ export default function DrillExecutionModal({ open, onClose, showToast }: DrillE
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const getAvailableDevices = () => {
+    if (!activeExecution) return [];
+    const usedDeviceIds = new Set(
+      activeExecution.checkIns.map((c) => c.deviceId).filter(Boolean) as string[]
+    );
+    return devices.filter((d) => d.status === 'available' && !usedDeviceIds.has(d.id));
+  };
+
   const handleCheckIn = (personId: string) => {
-    const availableDevice = devices.find((d) => d.status === 'available');
+    const availableDevices = getAvailableDevices();
+    const availableDevice = availableDevices[0];
     executionCheckIn(personId, availableDevice?.id);
     showToast('签到成功');
   };
 
   const handleCheckInAll = () => {
     if (!activeExecution) return;
-    const availableDevices = devices.filter((d) => d.status === 'available');
+    let availableDevices = getAvailableDevices();
     let deviceIdx = 0;
     activeExecution.participantResults.forEach((r) => {
       const already = activeExecution.checkIns.find((c) => c.personnelId === r.personnelId);
       if (!already) {
         const dev = availableDevices[deviceIdx % availableDevices.length];
         executionCheckIn(r.personnelId, dev?.id);
+        if (dev) {
+          availableDevices = availableDevices.filter((d) => d.id !== dev.id);
+        }
         deviceIdx++;
       }
     });
@@ -179,6 +191,10 @@ export default function DrillExecutionModal({ open, onClose, showToast }: DrillE
     if (!activeExecution || !drill) return null;
     const total = activeExecution.participantResults.length;
     const checkedIn = activeExecution.checkIns.length;
+    const availableDevices = getAvailableDevices();
+    const usedDeviceIds = new Set(
+      activeExecution.checkIns.map((c) => c.deviceId).filter(Boolean) as string[]
+    );
 
     return (
       <div className="space-y-5">
@@ -193,11 +209,45 @@ export default function DrillExecutionModal({ open, onClose, showToast }: DrillE
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto pr-1">
+        <div className="p-4 rounded-xl bg-dark-800/40 border border-dark-700">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-dark-200 flex items-center gap-2">
+              <Monitor className="w-4 h-4 text-fire-400" />
+              设备分配状态
+            </h4>
+            <span className="text-xs text-dark-400">
+              可用 {availableDevices.length} 台 / 已分配 {usedDeviceIds.size} 台
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {devices.filter((d) => d.status === 'available').map((d) => {
+              const isUsed = usedDeviceIds.has(d.id);
+              return (
+                <span
+                  key={d.id}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
+                    isUsed
+                      ? 'bg-green-900/20 border-green-500/40 text-green-400'
+                      : 'bg-dark-700/50 border-dark-600 text-dark-300'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${isUsed ? 'bg-green-400' : 'bg-dark-500'}`}></span>
+                  {d.name}
+                  <span className="text-[10px] opacity-70">
+                    {isUsed ? '已分配' : '可用'}
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto pr-1">
           {activeExecution.participantResults.map((r) => {
             const person = personnel.find((p) => p.id === r.personnelId);
             const checkIn = activeExecution.checkIns.find((c) => c.personnelId === r.personnelId);
             const isCheckedIn = !!checkIn;
+            const hasDevice = !!checkIn?.deviceId;
             return (
               <div
                 key={r.personnelId}
@@ -214,9 +264,22 @@ export default function DrillExecutionModal({ open, onClose, showToast }: DrillE
                   <div className="font-medium text-white">{person?.name}</div>
                   <div className="text-xs text-dark-400 truncate">{person?.department}</div>
                   {isCheckedIn ? (
-                    <div className="flex items-center gap-1 mt-1.5 text-xs text-green-400">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{checkIn?.checkedInAt?.slice(11, 19)} · {checkIn?.deviceName || '未分配设备'}</span>
+                    <div className="flex flex-col gap-1 mt-1.5">
+                      <div className="flex items-center gap-1 text-xs text-green-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>签到时间：{checkIn?.checkedInAt?.slice(11, 19)}</span>
+                      </div>
+                      {hasDevice ? (
+                        <div className="flex items-center gap-1 text-xs text-fire-400">
+                          <Monitor className="w-3.5 h-3.5" />
+                          <span>设备：{checkIn?.deviceName}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-xs text-dark-500">
+                          <Monitor className="w-3.5 h-3.5" />
+                          <span>未分配设备</span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center gap-1 mt-1.5 text-xs text-dark-400">

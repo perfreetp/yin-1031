@@ -97,12 +97,7 @@ export default function Home() {
     const pendingHazards = hazards.filter((h) => h.status === 'pending' || h.status === 'processing');
     const criticalHazards = pendingHazards.filter((h) => h.level === 'critical').length;
 
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const sevenDaysAgoStr = formatDate(sevenDaysAgo);
-    const unreadAnnouncements = announcements.filter(
-      (a) => a.publishDate.slice(0, 10) >= sevenDaysAgoStr
-    ).length;
+    const unreadAnnouncements = announcements.filter((a) => !a.isRead).length;
 
     const passedScores = scores.filter((s) => s.passed).length;
     const passRate = scores.length > 0 ? Math.round((passedScores / scores.length) * 100) : 0;
@@ -186,6 +181,7 @@ export default function Home() {
           icon={Flame}
           gradient="from-fire-500 to-fire-700"
           suffix="场"
+          onClick={() => navigate('/drills')}
         />
         <StatCard
           label="设备占用率"
@@ -193,6 +189,7 @@ export default function Home() {
           icon={Monitor}
           gradient="from-blue-500 to-blue-700"
           suffix="%"
+          onClick={() => navigate('/devices')}
         />
         <StatCard
           label="待整改隐患"
@@ -201,13 +198,19 @@ export default function Home() {
           gradient="from-yellow-500 to-orange-600"
           suffix={stats.criticalHazards > 0 ? `（严重 ${stats.criticalHazards}）` : '项'}
           highlight={stats.criticalHazards > 0}
+          onClick={() => navigate('/hazards')}
         />
         <StatCard
-          label="近7天公告"
+          label="未读公告"
           value={stats.unreadAnnouncements}
           icon={Bell}
           gradient="from-purple-500 to-purple-700"
-          suffix="条"
+          suffix={stats.unreadAnnouncements > 0 ? '条' : ''}
+          showBadge={stats.unreadAnnouncements > 0}
+          badgeValue={stats.unreadAnnouncements}
+          valueText={stats.unreadAnnouncements > 0 ? undefined : '全部已读'}
+          valueClassName={stats.unreadAnnouncements > 0 ? 'text-fire-400 font-bold' : 'text-dark-500'}
+          onClick={() => navigate('/announcements')}
         />
         <StatCard
           label="累计通过率"
@@ -215,6 +218,7 @@ export default function Home() {
           icon={TrendingUp}
           gradient="from-green-500 to-emerald-700"
           suffix="%"
+          onClick={() => navigate('/scores')}
         />
         <StatCard
           label="平均疏散用时"
@@ -222,6 +226,7 @@ export default function Home() {
           icon={Clock}
           gradient="from-indigo-500 to-blue-800"
           suffix="秒"
+          onClick={() => navigate('/scores')}
         />
       </section>
 
@@ -573,11 +578,36 @@ interface StatCardProps {
   gradient: string;
   suffix?: string;
   highlight?: boolean;
+  onClick?: () => void;
+  showBadge?: boolean;
+  badgeValue?: number;
+  valueText?: string;
+  valueClassName?: string;
 }
 
-function StatCard({ label, value, icon: Icon, gradient, suffix, highlight }: StatCardProps) {
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  gradient,
+  suffix,
+  highlight,
+  onClick,
+  showBadge,
+  badgeValue,
+  valueText,
+  valueClassName,
+}: StatCardProps) {
   return (
-    <div className="stat-card">
+    <div
+      className={`stat-card ${onClick ? 'cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-fire-500/10' : ''}`}
+      onClick={onClick}
+    >
+      {showBadge && badgeValue !== undefined && badgeValue > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-fire-500 text-white text-xs font-bold rounded-full flex items-center justify-center z-10 shadow-lg shadow-fire-500/30">
+          {badgeValue > 99 ? '99+' : badgeValue}
+        </span>
+      )}
       <div
         className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} opacity-10 rounded-full -translate-y-1/2 translate-x-1/2`}
       />
@@ -588,7 +618,9 @@ function StatCard({ label, value, icon: Icon, gradient, suffix, highlight }: Sta
           <Icon className="w-5 h-5 text-white" />
         </div>
         <div className="flex items-baseline gap-1">
-          <p className="text-2xl md:text-3xl font-bold text-white">{value}</p>
+          <p className={`text-2xl md:text-3xl font-bold ${valueClassName || 'text-white'}`}>
+            {valueText !== undefined ? valueText : value}
+          </p>
           <span
             className={`text-sm ${
               highlight ? 'text-red-400 font-medium' : 'text-dark-400'

@@ -41,19 +41,51 @@ const STORAGE_KEYS = {
   initialized: 'initialized_v1',
 };
 
+function migrateDrills(drills: Drill[]): Drill[] {
+  return drills.map((d) => ({
+    isArchived: false,
+    ...d,
+  }));
+}
+function migrateAnnouncements(anns: Announcement[]): Announcement[] {
+  return anns.map((a) => ({
+    isRead: false,
+    ...a,
+  }));
+}
+
 function initState() {
   const initialized = loadFromStorage<boolean>(STORAGE_KEYS.initialized, false);
+  const version = loadFromStorage<string>('schema_version', 'v1');
   if (!initialized) {
-    saveToStorage(STORAGE_KEYS.drills, drillsData);
+    saveToStorage(STORAGE_KEYS.drills, migrateDrills(drillsData));
     saveToStorage(STORAGE_KEYS.personnel, personnelData);
     saveToStorage(STORAGE_KEYS.scenarios, scenariosData);
     saveToStorage(STORAGE_KEYS.devices, devicesData);
     saveToStorage(STORAGE_KEYS.scores, scoresData);
     saveToStorage(STORAGE_KEYS.hazards, hazardsData);
-    saveToStorage(STORAGE_KEYS.announcements, announcementsData);
+    saveToStorage(STORAGE_KEYS.announcements, migrateAnnouncements(announcementsData));
     saveToStorage(STORAGE_KEYS.bookings, bookingsData);
     saveToStorage(STORAGE_KEYS.retrainRecords, [] as RetrainRecord[]);
     saveToStorage(STORAGE_KEYS.initialized, true);
+    saveToStorage('schema_version', 'v2');
+  } else if (version !== 'v2') {
+    const drills = migrateDrills(loadFromStorage<Drill[]>(STORAGE_KEYS.drills, drillsData));
+    const anns = migrateAnnouncements(loadFromStorage<Announcement[]>(STORAGE_KEYS.announcements, announcementsData));
+    saveToStorage(STORAGE_KEYS.drills, drills);
+    saveToStorage(STORAGE_KEYS.announcements, anns);
+    saveToStorage('schema_version', 'v2');
+    return {
+      drills,
+      personnel: loadFromStorage<Personnel[]>(STORAGE_KEYS.personnel, personnelData),
+      scenarios: loadFromStorage<Scenario[]>(STORAGE_KEYS.scenarios, scenariosData),
+      devices: loadFromStorage<Device[]>(STORAGE_KEYS.devices, devicesData),
+      scores: loadFromStorage<Score[]>(STORAGE_KEYS.scores, scoresData),
+      hazards: loadFromStorage<Hazard[]>(STORAGE_KEYS.hazards, hazardsData),
+      announcements: anns,
+      bookings: loadFromStorage<DeviceBooking[]>(STORAGE_KEYS.bookings, bookingsData),
+      retrainRecords: loadFromStorage<RetrainRecord[]>(STORAGE_KEYS.retrainRecords, []),
+    };
   }
   return {
     drills: loadFromStorage<Drill[]>(STORAGE_KEYS.drills, drillsData),
@@ -91,6 +123,9 @@ interface AppState {
   showDeviceBookingCalendar: boolean;
   showHazardAssign: Hazard | null;
   activeExecution: DrillExecutionState | null;
+  showDrillDetail: Drill | null;
+
+  setShowDrillDetail: (drill: Drill | null) => void;
 
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSelectedDrill: (drill: Drill | null) => void;
@@ -113,7 +148,7 @@ interface AppState {
   ) => void;
   executionGenerateScores: () => Score[];
 
-  addDrill: (drill: Omit<Drill, 'id' | 'createdAt' | 'checkedInCount'>) => Drill;
+  addDrill: (drill: Omit<Drill, 'id' | 'createdAt' | 'checkedInCount' | 'isArchived'>) => Drill;
   updateDrill: (id: string, drill: Partial<Drill>) => void;
   deleteDrill: (id: string) => void;
 
@@ -123,10 +158,15 @@ interface AppState {
   resolveHazard: (id: string) => void;
   verifyHazard: (id: string) => void;
 
-  addAnnouncement: (ann: Omit<Announcement, 'id' | 'publishDate'>) => Announcement;
+  addAnnouncement: (ann: Omit<Announcement, 'id' | 'publishDate' | 'isRead'>) => Announcement;
   updateAnnouncement: (id: string, announcement: Partial<Announcement>) => void;
   deleteAnnouncement: (id: string) => void;
   toggleAnnouncementPin: (id: string) => void;
+  markAnnouncementRead: (id: string) => void;
+  markAllAnnouncementsRead: () => void;
+
+  archiveDrill: (id: string) => void;
+  unarchiveDrill: (id: string) => void;
 
   updateDevice: (id: string, device: Partial<Device>) => void;
   addBooking: (booking: Omit<DeviceBooking, 'id' | 'createdAt' | 'status'>) => DeviceBooking;
@@ -161,8 +201,10 @@ export const useStore = create<AppState>((set, get) => {
     showDeviceBookingCalendar: false,
     showHazardAssign: null,
     activeExecution: null,
+    showDrillDetail: null,
 
     setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+    setShowDrillDetail: (drill) => set({ showDrillDetail: drill }),
     setSelectedDrill: (drill) => set({ selectedDrill: drill }),
     setSelectedPersonnel: (personnel) => set({ selectedPersonnel: personnel }),
     setShowDrillCreate: (show) => set({ showDrillCreate: show }),
@@ -279,6 +321,17 @@ export const useStore = create<AppState>((set, get) => {
         set({ scores });
         persist('scores', scores);
       }
+      const usedDeviceIds = ex.checkIns.map((c) => c.deviceId).filter(Boolean) as string[];
+      if (usedDeviceIds.length > 0) {
+        const { devices } = get();
+        const updatedDevices = devices.map((d) =>
+          usedDeviceIds.includes(d.id)
+            ? { ...d, status: 'available' as const, currentUser: undefined, lastUsed: formatDateTime(), usageCount: d.usageCount + 1 }
+            : d
+        );
+        set({ devices: updatedDevices });
+        persist('devices', updatedDevices);
+      }
       const { drills } = get();
       const updatedDrills = drills.map((d) =>
         d.id === ex.drillId ? { ...d, status: 'completed' as const } : d
@@ -294,6 +347,7 @@ export const useStore = create<AppState>((set, get) => {
         id: genId('dr'),
         createdAt: formatDateTime(),
         checkedInCount: 0,
+        isArchived: false,
       };
       const drills = [...get().drills, newDrill];
       set({ drills, showDrillCreate: false });
@@ -357,6 +411,7 @@ export const useStore = create<AppState>((set, get) => {
         ...annData,
         id: genId('an'),
         publishDate: formatDateTime(),
+        isRead: false,
       };
       const announcements = [newAnn, ...get().announcements];
       set({ announcements, showAnnouncementCreate: false });
@@ -381,6 +436,35 @@ export const useStore = create<AppState>((set, get) => {
       );
       set({ announcements });
       persist('announcements', announcements);
+    },
+    markAnnouncementRead: (id) => {
+      const announcements = get().announcements.map((a) =>
+        a.id === id && !a.isRead ? { ...a, isRead: true, readAt: formatDateTime() } : a
+      );
+      set({ announcements });
+      persist('announcements', announcements);
+    },
+    markAllAnnouncementsRead: () => {
+      const announcements = get().announcements.map((a) =>
+        !a.isRead ? { ...a, isRead: true, readAt: formatDateTime() } : a
+      );
+      set({ announcements });
+      persist('announcements', announcements);
+    },
+
+    archiveDrill: (id) => {
+      const drills = get().drills.map((d) =>
+        d.id === id ? { ...d, isArchived: true, archivedAt: formatDateTime() } : d
+      );
+      set({ drills });
+      persist('drills', drills);
+    },
+    unarchiveDrill: (id) => {
+      const drills = get().drills.map((d) =>
+        d.id === id ? { ...d, isArchived: false, archivedAt: undefined } : d
+      );
+      set({ drills });
+      persist('drills', drills);
     },
 
     updateDevice: (id, device) => {
@@ -503,6 +587,7 @@ export const useStore = create<AppState>((set, get) => {
         startTime: startStr,
         endTime: endStr,
         status: 'pending',
+        isArchived: false,
         participantIds: [person.id],
         participantCount: 1,
         checkedInCount: 0,

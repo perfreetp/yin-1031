@@ -31,6 +31,8 @@ export default function AnnouncementList() {
     updateAnnouncement,
     deleteAnnouncement,
     toggleAnnouncementPin,
+    markAnnouncementRead,
+    markAllAnnouncementsRead,
   } = useStore();
 
   const [searchText, setSearchText] = useState('');
@@ -75,6 +77,9 @@ export default function AnnouncementList() {
       return new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime();
     });
 
+  const unreadCount = announcements.filter((a) => !a.isRead).length;
+  const allRead = unreadCount === 0;
+
   const stats = {
     total: announcements.length,
     pinned: announcements.filter((a) => a.isPinned).length,
@@ -116,6 +121,13 @@ export default function AnnouncementList() {
     }
   };
 
+  const handleSelectAnnouncement = (announcement: Announcement) => {
+    setSelectedAnnouncement(announcement);
+    if (!announcement.isRead) {
+      markAnnouncementRead(announcement.id);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       <div className="flex items-center justify-between">
@@ -139,8 +151,25 @@ export default function AnnouncementList() {
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 glass-card p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">公告列表</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-white">公告列表</h2>
+              {unreadCount > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium text-white bg-red-500 rounded-full transition-all">
+                  {unreadCount} 条未读
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={markAllAnnouncementsRead}
+                disabled={allRead}
+                className={`btn-secondary text-sm flex items-center gap-1.5 px-3 py-2 ${
+                  allRead ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                <CheckCircle className="w-4 h-4" />
+                全部已读
+              </button>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
                 <input
@@ -172,7 +201,7 @@ export default function AnnouncementList() {
                   key={announcement.id}
                   announcement={announcement}
                   selected={selectedAnnouncement?.id === announcement.id}
-                  onClick={() => setSelectedAnnouncement(announcement)}
+                  onClick={() => handleSelectAnnouncement(announcement)}
                 />
               ))
             ) : (
@@ -277,24 +306,32 @@ function AnnouncementItem({
 }) {
   const type = typeConfig[announcement.type];
   const TypeIcon = type.icon;
+  const isUnread = !announcement.isRead;
 
   return (
     <div
       onClick={onClick}
-      className={`p-4 rounded-xl border transition-all cursor-pointer ${
+      className={`p-4 rounded-xl border transition-all cursor-pointer relative ${
         selected
           ? 'bg-fire-600/10 border-fire-500/30'
+          : isUnread
+          ? 'bg-dark-700/50 border-dark-600/70 hover:bg-dark-700/70 hover:border-dark-500/70'
           : 'bg-dark-700/30 border-dark-600/50 hover:bg-dark-700/50 hover:border-dark-500/50'
       }`}
     >
+      {isUnread && (
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+      )}
       <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-lg ${type.color} border flex items-center justify-center flex-shrink-0`}>
+        <div className={`w-10 h-10 rounded-lg ${type.color} border flex items-center justify-center flex-shrink-0 ${isUnread ? 'ml-2' : ''}`}>
           <TypeIcon className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             {announcement.isPinned && <Pin className="w-3.5 h-3.5 text-fire-400 fill-fire-400" />}
-            <h3 className="font-medium text-white truncate">{announcement.title}</h3>
+            <h3 className={`truncate ${isUnread ? 'font-semibold text-white' : 'font-medium text-dark-200'}`}>
+              {announcement.title}
+            </h3>
             <span className={`badge ${type.color} border flex-shrink-0`}>{type.label}</span>
           </div>
           <p className="text-sm text-dark-400 mt-1 line-clamp-2">{announcement.content}</p>
@@ -415,7 +452,7 @@ interface AnnouncementFormModalProps {
   mode: 'create' | 'edit';
   initialData?: Announcement;
   onClose: () => void;
-  onSubmit: (data: Omit<Announcement, 'id' | 'publishDate'>) => void;
+  onSubmit: (data: Omit<Announcement, 'id' | 'publishDate' | 'isRead'>) => void;
 }
 
 function AnnouncementFormModal({ mode, initialData, onClose, onSubmit }: AnnouncementFormModalProps) {
@@ -440,7 +477,7 @@ function AnnouncementFormModal({ mode, initialData, onClose, onSubmit }: Announc
 
   const handleSubmit = () => {
     if (!validate()) return;
-    const submitData: Omit<Announcement, 'id' | 'publishDate'> = {
+    const submitData: Omit<Announcement, 'id' | 'publishDate' | 'isRead'> = {
       title: formData.title.trim(),
       content: formData.content.trim(),
       type: formData.type,

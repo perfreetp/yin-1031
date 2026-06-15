@@ -6,10 +6,12 @@ export interface Drill {
   startTime: string;
   endTime: string;
   status: 'pending' | 'ongoing' | 'completed' | 'cancelled';
+  isArchived: boolean;
+  archivedAt?: string;
   participantIds: string[];
   participantCount: number;
   checkedInCount: number;
-  deviceIds: string[];
+  deviceIds?: string[];
   createdAt: string;
 }
 
@@ -112,6 +114,8 @@ export interface Announcement {
   content: string;
   type: 'training' | 'notice' | 'warning' | 'info';
   isPinned: boolean;
+  isRead: boolean;
+  readAt?: string;
   publishDate: string;
   expireDate?: string;
   author: string;

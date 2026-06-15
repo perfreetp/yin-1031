@@ -640,46 +640,59 @@ function CreateHazardModal({
 
             {previewUrl ? (
               <div className="relative">
-                <div className="relative rounded-lg overflow-hidden border border-dark-600 aspect-video h-40">
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative rounded-lg overflow-hidden border border-dark-600 h-40 cursor-pointer group"
+                >
                   <img
                     src={previewUrl}
                     alt="预览"
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-dark-900/60 to-transparent pointer-events-none"></div>
+                  <div className="absolute inset-0 bg-dark-900/0 group-hover:bg-dark-900/60 transition-all duration-200 flex items-center justify-center">
+                    <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      点击更换
+                    </span>
+                  </div>
                 </div>
                 <button
-                  onClick={clearFile}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-dark-900/80 backdrop-blur-sm border border-dark-600 flex items-center justify-center text-dark-300 hover:text-white hover:bg-dark-800 transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearFile();
+                  }}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-dark-900/80 backdrop-blur-sm border border-dark-600 flex items-center justify-center text-dark-300 hover:text-white hover:bg-dark-800 transition-all z-10"
                 >
                   <X className="w-4 h-4" />
                 </button>
-                <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-dark-700/40 border border-dark-600/50">
-                  <ImageIcon className="w-4 h-4 text-dark-400 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
+                <div className="mt-2 flex items-center justify-between px-3 py-2 rounded-lg bg-dark-700/40 border border-dark-600/50">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <ImageIcon className="w-4 h-4 text-dark-400 flex-shrink-0" />
                     <p className="text-xs text-dark-200 truncate">{selectedFile?.name}</p>
-                    <p className="text-xs text-dark-500">{selectedFile ? formatFileSize(selectedFile.size) : ''}</p>
                   </div>
+                  <p className="text-xs text-dark-500 flex-shrink-0 ml-2">
+                    {selectedFile ? formatFileSize(selectedFile.size) : ''}
+                  </p>
                 </div>
               </div>
             ) : (
-              <label className="block cursor-pointer">
-                <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-dark-600 hover:border-fire-500/50 transition-all aspect-video h-40 flex flex-col items-center justify-center bg-dark-700/30 group">
-                  <img
-                    src="https://picsum.photos/400/225?random=placeholder"
-                    alt="占位图"
-                    className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity"
-                  />
-                  <div className="absolute inset-0 bg-dark-900/50"></div>
-                  <div className="relative flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded-full bg-dark-700/80 backdrop-blur-sm border border-dark-600 flex items-center justify-center group-hover:border-fire-500/50 transition-all">
-                      <Upload className="w-5 h-5 text-dark-300 group-hover:text-fire-400 transition-colors" />
-                    </div>
-                    <span className="text-sm text-dark-200 group-hover:text-white transition-colors">点击上传隐患照片</span>
-                    <span className="text-xs text-dark-500">支持 JPG、PNG、GIF 格式</span>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="relative rounded-lg overflow-hidden border border-dark-600 h-40 cursor-pointer bg-dark-700/30 hover:border-fire-500/50 hover:bg-dark-700/50 transition-all group"
+              >
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-dark-700/80 backdrop-blur-sm border border-dark-600 flex items-center justify-center group-hover:border-fire-500/50 group-hover:bg-dark-600/80 transition-all">
+                    <ImageIcon className="w-7 h-7 text-dark-400 group-hover:text-fire-400 transition-colors" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-dark-200 group-hover:text-white transition-colors font-medium">
+                      点击上传隐患照片
+                    </p>
+                    <p className="text-xs text-dark-500 mt-1">
+                      支持 JPG、PNG、GIF 格式
+                    </p>
                   </div>
                 </div>
-              </label>
+              </div>
             )}
           </div>
         </div>
