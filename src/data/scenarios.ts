@@ -1,0 +1,173 @@
+import { Scenario } from '@/types';
+
+export const scenariosData: Scenario[] = [
+  {
+    id: 's001',
+    name: '办公楼高层火灾',
+    description: '模拟高层办公楼突发火灾场景，包含电梯停运、楼道浓烟等真实情况，训练员工正确选择逃生路线和自救方法。',
+    difficulty: 'medium',
+    duration: 15,
+    coverImage: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20office%20building%20on%20fire%20with%20smoke%20coming%20out%20of%20windows%20dramatic%20scene&image_size=landscape_16_9',
+    escapeRoutes: [
+      {
+        id: 'er001',
+        name: '主逃生路线',
+        startPoint: '办公区A',
+        endPoint: '一楼安全出口',
+        description: '通过东侧楼梯间下楼，到达一楼大厅安全出口',
+      },
+      {
+        id: 'er002',
+        name: '备用逃生路线',
+        startPoint: '办公区B',
+        endPoint: '天台避难层',
+        description: '通过西侧楼梯间上至天台，等待救援',
+      },
+    ],
+    extinguisherSteps: [
+      { id: 'es001', step: 1, description: '提起灭火器', isCorrect: true },
+      { id: 'es002', step: 2, description: '拔掉保险销', isCorrect: true },
+      { id: 'es003', step: 3, description: '握住喷管中部', isCorrect: false },
+      { id: 'es004', step: 4, description: '握住喷管末端', isCorrect: true },
+      { id: 'es005', step: 5, description: '对准火焰顶部扫射', isCorrect: false },
+      { id: 'es006', step: 6, description: '对准火焰根部扫射', isCorrect: true },
+    ],
+    smokeQuestions: [
+      {
+        id: 'sq001',
+        question: '图中烟雾是什么类型？',
+        image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=black%20thick%20smoke%20from%20burning%20plastic%20industrial&image_size=square',
+        options: ['无毒白烟', '有毒黑烟', '水蒸气', '粉尘'],
+        correctAnswer: 1,
+      },
+      {
+        id: 'sq002',
+        question: '遇到浓烟时应该怎么做？',
+        image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=person%20crawling%20under%20thick%20smoke%20in%20hallway&image_size=square',
+        options: ['直立奔跑', '弯腰低姿前进', '跳跃前进', '原地等待'],
+        correctAnswer: 1,
+      },
+    ],
+  },
+  {
+    id: 's002',
+    name: '商场火灾逃生',
+    description: '模拟大型商场突发火灾场景，人员密集、出口众多，训练在复杂环境下快速找到安全出口的能力。',
+    difficulty: 'hard',
+    duration: 20,
+    coverImage: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=shopping%20mall%20interior%20with%20fire%20and%20smoke%20emergency%20evacuation&image_size=landscape_16_9',
+    escapeRoutes: [
+      {
+        id: 'er003',
+        name: '东侧出口',
+        startPoint: '一楼中庭',
+        endPoint: '东门广场',
+        description: '沿东侧走廊直行，到达东门安全出口',
+      },
+      {
+        id: 'er004',
+        name: '西侧出口',
+        startPoint: '二楼服装区',
+        endPoint: '西门停车场',
+        description: '通过西侧楼梯下楼，到达西门出口',
+      },
+      {
+        id: 'er005',
+        name: '地下疏散通道',
+        startPoint: '负一楼超市',
+        endPoint: '室外安全区',
+        description: '通过地下疏散通道，到达室外集结点',
+      },
+    ],
+    extinguisherSteps: [
+      { id: 'es007', step: 1, description: '检查灭火器压力表', isCorrect: true },
+      { id: 'es008', step: 2, description: '颠倒摇晃灭火器', isCorrect: true },
+      { id: 'es009', step: 3, description: '拔掉保险销', isCorrect: true },
+      { id: 'es010', step: 4, description: '站在下风方向', isCorrect: false },
+      { id: 'es011', step: 5, description: '站在上风方向', isCorrect: true },
+      { id: 'es012', step: 6, description: '由近及远扫射', isCorrect: true },
+    ],
+    smokeQuestions: [
+      {
+        id: 'sq003',
+        question: '商场火灾中最危险的是什么？',
+        image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=shopping%20mall%20filled%20with%20dark%20toxic%20smoke%20emergency&image_size=square',
+        options: ['火焰', '浓烟和有毒气体', '人群踩踏', '物品掉落'],
+        correctAnswer: 1,
+      },
+    ],
+  },
+  {
+    id: 's003',
+    name: '实验室化学火灾',
+    description: '模拟实验室化学品泄漏引发火灾，包含特殊灭火剂选择和个人防护等专业知识。',
+    difficulty: 'hard',
+    duration: 25,
+    coverImage: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=science%20laboratory%20on%20fire%20with%20chemical%20fire%20blue%20flames&image_size=landscape_16_9',
+    escapeRoutes: [
+      {
+        id: 'er006',
+        name: '实验室正门',
+        startPoint: '实验台',
+        endPoint: '走廊安全出口',
+        description: '关闭实验室门，沿走廊向安全出口疏散',
+      },
+    ],
+    extinguisherSteps: [
+      { id: 'es013', step: 1, description: '切断电源和气源', isCorrect: true },
+      { id: 'es014', step: 2, description: '用水直接扑灭', isCorrect: false },
+      { id: 'es015', step: 3, description: '使用干粉灭火器', isCorrect: true },
+      { id: 'es016', step: 4, description: '使用二氧化碳灭火器', isCorrect: true },
+      { id: 'es017', step: 5, description: '用湿布覆盖灭火', isCorrect: true },
+    ],
+    smokeQuestions: [
+      {
+        id: 'sq004',
+        question: '化学火灾产生的烟雾应该如何防护？',
+        image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=scientist%20wearing%20gas%20mask%20in%20lab%20with%20chemical%20smoke&image_size=square',
+        options: ['用毛巾捂住口鼻', '佩戴防毒面具', '屏住呼吸快跑', '打开窗户通风'],
+        correctAnswer: 1,
+      },
+      {
+        id: 'sq005',
+        question: '什么颜色的火焰表示化学物质燃烧？',
+        image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=blue%20green%20chemical%20flames%20burning%20in%20lab%20beaker&image_size=square',
+        options: ['橙黄色', '蓝绿色', '红色', '白色'],
+        correctAnswer: 1,
+      },
+    ],
+  },
+  {
+    id: 's004',
+    name: '家庭厨房火灾',
+    description: '模拟家庭厨房油锅起火等常见火灾场景，训练正确的初期火灾处置方法。',
+    difficulty: 'easy',
+    duration: 10,
+    coverImage: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=kitchen%20on%20fire%20stove%20with%20pan%20fire%20emergency%20situation&image_size=landscape_16_9',
+    escapeRoutes: [
+      {
+        id: 'er007',
+        name: '厨房出口',
+        startPoint: '灶台旁',
+        endPoint: '客厅大门',
+        description: '关闭厨房门，从大门撤离',
+      },
+    ],
+    extinguisherSteps: [
+      { id: 'es018', step: 1, description: '用水浇灭', isCorrect: false },
+      { id: 'es019', step: 2, description: '盖上锅盖', isCorrect: true },
+      { id: 'es020', step: 3, description: '倒入生菜', isCorrect: true },
+      { id: 'es021', step: 4, description: '使用灭火器', isCorrect: true },
+      { id: 'es022', step: 5, description: '关掉燃气阀门', isCorrect: true },
+    ],
+    smokeQuestions: [
+      {
+        id: 'sq006',
+        question: '油锅起火时正确的做法是？',
+        image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=pan%20with%20fire%20on%20stove%20in%20kitchen%20dangerous&image_size=square',
+        options: ['用水浇', '盖上锅盖', '端起锅往外跑', '用毛巾扑打'],
+        correctAnswer: 1,
+      },
+    ],
+  },
+];

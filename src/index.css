@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  background: #0A0F1C;
+  color: #E4E7ED;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1E293B;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-dark-800/60 backdrop-blur-md border border-dark-700/50 rounded-xl;
+  }
+  
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:bg-dark-700/60 hover:border-fire-600/30 hover:shadow-lg hover:shadow-fire-600/10 hover:-translate-y-0.5;
+  }
+  
+  .btn-primary {
+    @apply px-4 py-2 bg-fire-600 text-white rounded-lg font-medium transition-all duration-200 hover:bg-fire-700 hover:shadow-lg hover:shadow-fire-600/30 active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply px-4 py-2 bg-dark-700 text-dark-100 rounded-lg font-medium transition-all duration-200 hover:bg-dark-600 border border-dark-600;
+  }
+  
+  .input-field {
+    @apply w-full px-3 py-2 bg-dark-700/50 border border-dark-600 rounded-lg text-dark-100 placeholder-dark-400 focus:outline-none focus:border-fire-500 focus:ring-1 focus:ring-fire-500/50 transition-all duration-200;
+  }
+  
+  .badge {
+    @apply px-2 py-0.5 text-xs font-medium rounded-full;
+  }
+  
+  .stat-card {
+    @apply glass-card p-5 relative overflow-hidden;
+  }
+  
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-dark-300 transition-all duration-200 hover:bg-dark-700/50 hover:text-white;
+  }
+  
+  .sidebar-item.active {
+    @apply bg-fire-600/20 text-fire-400 border-l-2 border-fire-500;
+  }
+}
