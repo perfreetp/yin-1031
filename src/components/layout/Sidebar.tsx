@@ -11,12 +11,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
+  Archive,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 
 const menuItems = [
   { path: '/', label: '运营总览', icon: LayoutDashboard },
   { path: '/drills', label: '演练计划', icon: Calendar },
+  { path: '/archives', label: '演练档案', icon: Archive },
   { path: '/personnel', label: '人员管理', icon: Users },
   { path: '/scenarios', label: '场景管理', icon: MapPin },
   { path: '/devices', label: '设备管理', icon: Monitor },

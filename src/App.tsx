@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Layout from "@/components/layout/Layout";
 import Home from "@/pages/Home";
 import DrillList from "@/pages/drills/DrillList";
+import ArchiveCenter from "@/pages/drills/ArchiveCenter";
 import PersonnelList from "@/pages/personnel/PersonnelList";
 import ScenarioList from "@/pages/scenarios/ScenarioList";
 import DeviceList from "@/pages/devices/DeviceList";
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="drills" element={<DrillList />} />
+          <Route path="archives" element={<ArchiveCenter />} />
           <Route path="personnel" element={<PersonnelList />} />
           <Route path="scenarios" element={<ScenarioList />} />
           <Route path="devices" element={<DeviceList />} />

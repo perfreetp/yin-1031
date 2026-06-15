@@ -188,6 +188,42 @@ export const DEFAULT_ERROR_TYPES = [
   { type: '乘电梯逃生', description: '火灾情况下错误选择乘坐电梯' },
 ];
 
+export interface DrillStats {
+  drillId: string;
+  drillName: string;
+  scenarioName: string;
+  startTime: string;
+  participantCount: number;
+  checkedInCount: number;
+  passCount: number;
+  failCount: number;
+  passRate: number;
+  averageEscapeTime: number;
+  totalErrors: number;
+  errorTypeCounts: Record<string, number>;
+  deviceIds: string[];
+}
+
+export interface ArchiveSummary {
+  drillName: string;
+  drillId: string;
+  scenario: string;
+  date: string;
+  department: string;
+  participants: string[];
+  passRate: string;
+  averageTime: string;
+  errors: string[];
+  devices: string[];
+  generatedAt: string;
+}
+
+export interface BookingConflict {
+  hasConflict: boolean;
+  conflictingBookings: DeviceBooking[];
+  message: string;
+}
+
 export interface DepartmentStats {
   name: string;
   totalCount: number;

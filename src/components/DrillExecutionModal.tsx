@@ -112,17 +112,11 @@ export default function DrillExecutionModal({ open, onClose, showToast }: DrillE
 
   const handleCheckInAll = () => {
     if (!activeExecution) return;
-    let availableDevices = getAvailableDevices();
-    let deviceIdx = 0;
     activeExecution.participantResults.forEach((r) => {
       const already = activeExecution.checkIns.find((c) => c.personnelId === r.personnelId);
       if (!already) {
-        const dev = availableDevices[deviceIdx % availableDevices.length];
-        executionCheckIn(r.personnelId, dev?.id);
-        if (dev) {
-          availableDevices = availableDevices.filter((d) => d.id !== dev.id);
-        }
-        deviceIdx++;
+        const available = getAvailableDevices();
+        executionCheckIn(r.personnelId, available[0]?.id);
       }
     });
     showToast('全部签到完成');

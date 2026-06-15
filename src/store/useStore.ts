@@ -12,6 +12,9 @@ import {
   RetrainRecord,
   DrillExecutionState,
   ErrorRecord,
+  DrillStats,
+  BookingConflict,
+  ArchiveSummary,
 } from '@/types';
 import { drillsData } from '@/data/drills';
 import { personnelData } from '@/data/personnel';
@@ -165,6 +168,21 @@ interface AppState {
   markAnnouncementRead: (id: string) => void;
   markAllAnnouncementsRead: () => void;
 
+  getCompletedDrills: (params?: {
+    month?: string;
+    department?: string;
+    scenarioId?: string;
+  }) => Drill[];
+  getDrillStats: (drillId: string) => DrillStats | null;
+  getAllDrillStats: () => DrillStats[];
+  checkBookingConflict: (
+    deviceId: string,
+    startTime: string,
+    endTime: string,
+    excludeBookingId?: string
+  ) => BookingConflict;
+  generateDrillArchiveSummary: (drillId: string) => ArchiveSummary | null;
+
   archiveDrill: (id: string) => void;
   unarchiveDrill: (id: string) => void;
 
@@ -176,6 +194,7 @@ interface AppState {
   addScore: (score: Omit<Score, 'id'>) => Score;
   updateScore: (id: string, score: Partial<Score>) => void;
   scheduleRetrain: (originalScoreId: string) => { retrain: RetrainRecord; drill: Drill } | null;
+  scheduleRetrainForDrill: (drillId: string) => { retrainRecords: RetrainRecord[]; drill: Drill } | null;
 
   getDepartmentStats: () => DepartmentStats[];
 }
@@ -218,7 +237,7 @@ export const useStore = create<AppState>((set, get) => {
     setActiveExecution: (ex) => set({ activeExecution: ex }),
 
     startDrillExecution: (drillId) => {
-      const { drills, personnel, devices } = get();
+      const { drills, personnel } = get();
       const drill = drills.find((d) => d.id === drillId);
       if (!drill) return;
       const participants = drill.participantIds
@@ -230,7 +249,6 @@ export const useStore = create<AppState>((set, get) => {
         escapeTime: 0,
         errors: [],
       }));
-      const availableDeviceIds = devices.filter((d) => d.status === 'available').map((d) => d.id);
       set({
         activeExecution: {
           drillId,
@@ -240,16 +258,6 @@ export const useStore = create<AppState>((set, get) => {
           startedAt: formatDateTime(),
         },
       });
-      const updatedDevices = devices.map((d, i) =>
-        participants[i] && availableDeviceIds.includes(d.id)
-          ? { ...d, status: 'in-use' as const, currentUser: participants[i].name }
-          : d
-      );
-      const anyInUse = updatedDevices.some((d, i) => participants[i] && d.status === 'in-use');
-      if (anyInUse) {
-        set({ devices: updatedDevices });
-        persist('devices', updatedDevices);
-      }
       const updatedDrills = get().drills.map((d) =>
         d.id === drillId ? { ...d, status: 'ongoing' as const } : d
       );
@@ -261,16 +269,35 @@ export const useStore = create<AppState>((set, get) => {
       const ex = get().activeExecution;
       if (!ex) return;
       const person = get().personnel.find((p) => p.id === personnelId);
-      let deviceName: string | undefined;
-      if (deviceId) {
-        const dev = get().devices.find((d) => d.id === deviceId);
-        deviceName = dev?.name;
-      }
+      if (!person) return;
       const already = ex.checkIns.find((c) => c.personnelId === personnelId);
       if (already) return;
+      let assignedDeviceId: string | undefined;
+      let assignedDeviceName: string | undefined;
+      if (deviceId) {
+        const existingAssignment = ex.checkIns.find((c) => c.deviceId === deviceId);
+        if (!existingAssignment) {
+          const dev = get().devices.find((d) => d.id === deviceId && d.status === 'available');
+          if (dev) {
+            assignedDeviceId = dev.id;
+            assignedDeviceName = dev.name;
+            const updatedDevices = get().devices.map((d) =>
+              d.id === deviceId ? { ...d, status: 'in-use' as const, currentUser: person.name } : d
+            );
+            set({ devices: updatedDevices });
+            persist('devices', updatedDevices);
+          }
+        }
+      }
       const newCheckIns = [
         ...ex.checkIns,
-        { personnelId, personnelName: person?.name || '', deviceId, deviceName, checkedInAt: formatDateTime() },
+        {
+          personnelId,
+          personnelName: person.name,
+          deviceId: assignedDeviceId,
+          deviceName: assignedDeviceName,
+          checkedInAt: formatDateTime(),
+        },
       ];
       set({
         activeExecution: { ...ex, checkIns: newCheckIns },
@@ -452,6 +479,144 @@ export const useStore = create<AppState>((set, get) => {
       persist('announcements', announcements);
     },
 
+    getCompletedDrills: (params) => {
+      const { drills, personnel } = get();
+      let completed = drills.filter((d) => d.status === 'completed');
+      if (params?.month) {
+        completed = completed.filter((d) => d.startTime.startsWith(params.month!));
+      }
+      if (params?.department) {
+        completed = completed.filter((d) => {
+          const firstParticipant = personnel.find((p) => p.id === d.participantIds[0]);
+          return firstParticipant?.department === params.department;
+        });
+      }
+      if (params?.scenarioId) {
+        completed = completed.filter((d) => d.scenarioId === params.scenarioId);
+      }
+      return completed.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    },
+
+    getDrillStats: (drillId) => {
+      const { drills, scores, scenarios, personnel } = get();
+      const drill = drills.find((d) => d.id === drillId);
+      if (!drill) return null;
+      const scenario = scenarios.find((s) => s.id === drill.scenarioId);
+      const drillScores = scores.filter((s) => s.drillId === drillId);
+      const passCount = drillScores.filter((s) => s.passed).length;
+      const failCount = drillScores.length - passCount;
+      const passRate = drillScores.length > 0 ? Math.round((passCount / drillScores.length) * 100) : 0;
+      const times = drillScores.filter((s) => s.escapeTime > 0).map((s) => s.escapeTime);
+      const averageEscapeTime = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0;
+      const errorTypeCounts: Record<string, number> = {};
+      let totalErrors = 0;
+      drillScores.forEach((s) => {
+        s.errors.forEach((e) => {
+          errorTypeCounts[e.type] = (errorTypeCounts[e.type] || 0) + 1;
+          totalErrors++;
+        });
+      });
+      const drillParticipants = drill.participantIds
+        .map((pid) => personnel.find((p) => p.id === pid))
+        .filter(Boolean) as Personnel[];
+      const deviceIds = drillScores
+        .map((s) => {
+          const checkIn = get().activeExecution?.checkIns.find((c) => c.personnelId === s.personnelId);
+          return checkIn?.deviceId;
+        })
+        .filter(Boolean) as string[];
+      return {
+        drillId,
+        drillName: drill.name,
+        scenarioName: scenario?.name || '',
+        startTime: drill.startTime,
+        participantCount: drillParticipants.length,
+        checkedInCount: drill.checkedInCount,
+        passCount,
+        failCount,
+        passRate,
+        averageEscapeTime,
+        totalErrors,
+        errorTypeCounts,
+        deviceIds,
+      };
+    },
+
+    getAllDrillStats: () => {
+      const { drills } = get();
+      return drills
+        .filter((d) => d.status === 'completed')
+        .map((d) => get().getDrillStats(d.id))
+        .filter(Boolean) as DrillStats[];
+    },
+
+    checkBookingConflict: (deviceId, startTime, endTime, excludeBookingId) => {
+      const { bookings } = get();
+      const newStart = new Date(startTime).getTime();
+      const newEnd = new Date(endTime).getTime();
+      const conflicts = bookings.filter((b) => {
+        if (b.id === excludeBookingId) return false;
+        if (b.deviceId !== deviceId) return false;
+        if (b.status === 'cancelled' || b.status === 'completed') return false;
+        const bStart = new Date(b.startTime).getTime();
+        const bEnd = new Date(b.endTime).getTime();
+        return !(newEnd <= bStart || newStart >= bEnd);
+      });
+      if (conflicts.length === 0) {
+        return { hasConflict: false, conflictingBookings: [], message: '无冲突' };
+      }
+      const conflictNames = conflicts.map((c) => `${c.personnelName} (${c.startTime.slice(0, 16)}~${c.endTime.slice(11, 16)})`).join('、');
+      return {
+        hasConflict: true,
+        conflictingBookings: conflicts,
+        message: `与以下预约冲突: ${conflictNames}`,
+      };
+    },
+
+    generateDrillArchiveSummary: (drillId) => {
+      const { drills, scores, scenarios, personnel, devices } = get();
+      const drill = drills.find((d) => d.id === drillId);
+      if (!drill) return null;
+      const scenario = scenarios.find((s) => s.id === drill.scenarioId);
+      const drillScores = scores.filter((s) => s.drillId === drillId);
+      const drillParticipants = drill.participantIds
+        .map((pid) => personnel.find((p) => p.id === pid))
+        .filter(Boolean) as Personnel[];
+      const firstParticipant = drillParticipants[0];
+      const passCount = drillScores.filter((s) => s.passed).length;
+      const passRate = drillScores.length > 0 ? Math.round((passCount / drillScores.length) * 100) : 0;
+      const times = drillScores.filter((s) => s.escapeTime > 0).map((s) => s.escapeTime);
+      const averageTime = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0;
+      const errorTypeCounts: Record<string, number> = {};
+      drillScores.forEach((s) => {
+        s.errors.forEach((e) => {
+          errorTypeCounts[e.type] = (errorTypeCounts[e.type] || 0) + 1;
+        });
+      });
+      const errorList = Object.entries(errorTypeCounts)
+        .sort(([, a], [, b]) => b - a)
+        .map(([type, count]) => `${type} x${count}`);
+      const deviceIdsUsed = drillScores
+        .map((s) => {
+          const dev = devices.find((d) => d.id === s.drillId);
+          return dev?.name;
+        })
+        .filter(Boolean) as string[];
+      return {
+        drillName: drill.name,
+        drillId,
+        scenario: scenario?.name || '',
+        date: drill.startTime,
+        department: firstParticipant?.department || '',
+        participants: drillParticipants.map((p) => p.name),
+        passRate: `${passRate}% (${passCount}/${drillScores.length})`,
+        averageTime: `${averageTime}秒`,
+        errors: errorList,
+        devices: deviceIdsUsed,
+        generatedAt: formatDateTime(),
+      };
+    },
+
     archiveDrill: (id) => {
       const drills = get().drills.map((d) =>
         d.id === id ? { ...d, isArchived: true, archivedAt: formatDateTime() } : d
@@ -620,6 +785,79 @@ export const useStore = create<AppState>((set, get) => {
       persist('scores', updatedScores);
 
       return { retrain, drill: newDrill };
+    },
+
+    scheduleRetrainForDrill: (drillId) => {
+      const { scores, drills, personnel, scenarios } = get();
+      const originalDrill = drills.find((d) => d.id === drillId);
+      if (!originalDrill) return null;
+
+      const failedScores = scores.filter((s) => s.drillId === drillId && !s.passed);
+      if (failedScores.length === 0) return null;
+
+      const failedPersonnelIds = failedScores.map((s) => s.personnelId);
+      const failedPersons = personnel.filter((p) => failedPersonnelIds.includes(p.id));
+      if (failedPersons.length === 0) return null;
+
+      const scenarioId = originalDrill.scenarioId || scenarios[0]?.id || '';
+      const scenarioName = originalDrill.scenarioName || scenarios[0]?.name || '';
+
+      const drillName = `${originalDrill.name}-重训`;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() + 1);
+      startDate.setHours(9, 0, 0, 0);
+      const startStr = formatDateTime(startDate);
+      const endDate = new Date(startDate);
+      endDate.setHours(endDate.getHours() + 2);
+      const endStr = formatDateTime(endDate);
+
+      const newDrill: Drill = {
+        id: genId('dr'),
+        name: drillName,
+        scenarioId,
+        scenarioName,
+        startTime: startStr,
+        endTime: endStr,
+        status: 'pending',
+        isArchived: false,
+        participantIds: failedPersonnelIds,
+        participantCount: failedPersonnelIds.length,
+        checkedInCount: 0,
+        deviceIds: [],
+        createdAt: formatDateTime(),
+      };
+      const updatedDrills = [...drills, newDrill];
+      set({ drills: updatedDrills });
+      persist('drills', updatedDrills);
+
+      const retrainRecords: RetrainRecord[] = failedScores.map((score) => {
+        const person = personnel.find((p) => p.id === score.personnelId);
+        return {
+          id: genId('rt'),
+          originalScoreId: score.id,
+          personnelId: score.personnelId,
+          personnelName: person?.name || score.personnelName || '',
+          originalDrillId: drillId,
+          newDrillId: newDrill.id,
+          newDrillName: drillName,
+          reason: `未通过 ${originalDrill.name} 演练，安排重训`,
+          createdAt: formatDateTime(),
+        };
+      });
+
+      const updatedRetrainRecords = [...get().retrainRecords, ...retrainRecords];
+      set({ retrainRecords: updatedRetrainRecords });
+      persist('retrainRecords', updatedRetrainRecords);
+
+      const updatedScores = scores.map((s) =>
+        failedScores.some((fs) => fs.id === s.id)
+          ? { ...s, retrainCount: s.retrainCount + 1 }
+          : s
+      );
+      set({ scores: updatedScores });
+      persist('scores', updatedScores);
+
+      return { retrainRecords, drill: newDrill };
     },
 
     getDepartmentStats: () => {
