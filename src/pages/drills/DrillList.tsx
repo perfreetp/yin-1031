@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Plus, Search, Filter, MoreVertical, Users, Clock, CheckCircle, XCircle, Play, FileArchive, Calendar, Trash2, TrendingUp, Monitor } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Filter, MoreVertical, Users, Clock, CheckCircle, XCircle, Play, FileArchive, Calendar, Trash2, TrendingUp, Monitor, Trophy } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import type { Drill, Scenario, Personnel, Device } from '@/types';
 import Modal from '@/components/Modal';
+import DrillExecutionModal from '@/components/DrillExecutionModal';
 import { formatDateTime, addDays } from '@/lib/utils';
 
 const statusConfig = {
@@ -13,6 +15,7 @@ const statusConfig = {
 };
 
 export default function DrillList() {
+  const navigate = useNavigate();
   const {
     drills,
     scenarios,
@@ -22,10 +25,14 @@ export default function DrillList() {
     setShowDrillCreate,
     addDrill,
     deleteDrill,
+    startDrillExecution,
+    activeExecution,
+    setActiveExecution,
   } = useStore();
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [toast, setToast] = useState<string>('');
+  const [showExecutionModal, setShowExecutionModal] = useState(false);
 
   const filteredDrills = drills.filter((drill) => {
     const matchSearch = drill.name.toLowerCase().includes(searchText.toLowerCase());
@@ -118,6 +125,21 @@ export default function DrillList() {
                     deleteDrill(id);
                     showToast('演练已删除');
                   }}
+                  onStartDrill={(id) => {
+                    startDrillExecution(id);
+                    setShowExecutionModal(true);
+                  }}
+                  onContinueDrill={(id) => {
+                    if (activeExecution && activeExecution.drillId === id) {
+                      setShowExecutionModal(true);
+                    } else {
+                      startDrillExecution(id);
+                      setShowExecutionModal(true);
+                    }
+                  }}
+                  onViewScores={() => {
+                    navigate('/scores');
+                  }}
                 />
               ))}
             </tbody>
@@ -141,6 +163,12 @@ export default function DrillList() {
           addDrill(data);
           showToast('演练创建成功！');
         }}
+      />
+
+      <DrillExecutionModal
+        open={showExecutionModal}
+        onClose={() => setShowExecutionModal(false)}
+        showToast={showToast}
       />
 
       {toast && (
@@ -168,7 +196,19 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: n
   );
 }
 
-function DrillRow({ drill, onDelete }: { drill: Drill; onDelete: (id: string) => void }) {
+function DrillRow({
+  drill,
+  onDelete,
+  onStartDrill,
+  onContinueDrill,
+  onViewScores,
+}: {
+  drill: Drill;
+  onDelete: (id: string) => void;
+  onStartDrill: (id: string) => void;
+  onContinueDrill: (id: string) => void;
+  onViewScores: () => void;
+}) {
   const status = statusConfig[drill.status];
   const checkInProgress = drill.participantCount > 0 ? drill.checkedInCount / drill.participantCount : 0;
 
@@ -217,18 +257,33 @@ function DrillRow({ drill, onDelete }: { drill: Drill; onDelete: (id: string) =>
       <td className="py-4 px-4">
         <div className="flex items-center gap-2">
           {drill.status === 'pending' && (
-            <button className="p-1.5 rounded-lg text-dark-300 hover:text-white hover:bg-dark-600 transition-all" title="开始演练">
+            <button
+              onClick={() => onStartDrill(drill.id)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-fire-500 to-fire-600 hover:from-fire-400 hover:to-fire-500 text-white text-sm font-semibold shadow-lg shadow-fire-900/30 transition-all"
+              title="开始演练"
+            >
               <Play className="w-4 h-4" />
+              开始演练
             </button>
           )}
           {drill.status === 'ongoing' && (
-            <button className="p-1.5 rounded-lg text-green-400 hover:text-green-300 hover:bg-green-500/10 transition-all" title="查看">
+            <button
+              onClick={() => onContinueDrill(drill.id)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white text-sm font-semibold shadow-lg shadow-green-900/30 transition-all"
+              title="继续执行"
+            >
               <TrendingUp className="w-4 h-4" />
+              继续执行
             </button>
           )}
           {drill.status === 'completed' && (
-            <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-all" title="归档">
-              <FileArchive className="w-4 h-4" />
+            <button
+              onClick={onViewScores}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white text-sm font-semibold shadow-lg shadow-blue-900/30 transition-all"
+              title="查看成绩"
+            >
+              <Trophy className="w-4 h-4" />
+              查看成绩
             </button>
           )}
           <button

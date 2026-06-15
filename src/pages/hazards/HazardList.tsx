@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { AlertTriangle, Clock, User, Calendar, Plus, Search, Filter, CheckCircle, XCircle, AlertCircle, Image as ImageIcon, Shield, Activity } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { AlertTriangle, Clock, User, Calendar, Plus, Search, Filter, CheckCircle, XCircle, AlertCircle, Image as ImageIcon, Shield, Activity, Upload, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import Modal from '@/components/Modal';
 import { cn, formatDate, addDays } from '@/lib/utils';
@@ -54,7 +54,8 @@ export default function HazardList() {
   const filteredHazards = hazards.filter((hazard) => {
     const matchSearch =
       hazard.title.toLowerCase().includes(searchText.toLowerCase()) ||
-      hazard.description.toLowerCase().includes(searchText.toLowerCase());
+      hazard.description.toLowerCase().includes(searchText.toLowerCase()) ||
+      (hazard.responsibleName && hazard.responsibleName.toLowerCase().includes(searchText.toLowerCase()));
     const matchLevel = levelFilter === 'all' || hazard.level === levelFilter;
     const matchStatus = statusFilter === 'all' || hazard.status === statusFilter;
     return matchSearch && matchLevel && matchStatus;
@@ -267,6 +268,47 @@ function HazardCard({
     else if (hazard.status === 'resolved') onVerify();
   };
 
+  const getDeadlineBadge = () => {
+    if (!hazard.deadline) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(hazard.deadline);
+    deadline.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return (
+        <span className="badge bg-red-500/20 text-red-400 border border-red-500/30 ml-auto">
+          超期 {Math.abs(diffDays)} 天
+        </span>
+      );
+    } else if (diffDays === 0) {
+      return (
+        <span className="badge bg-orange-500/20 text-orange-400 border border-orange-500/30 ml-auto">
+          今日到期
+        </span>
+      );
+    } else {
+      return (
+        <span className="badge bg-green-500/20 text-green-400 border border-green-500/30 ml-auto">
+          剩余 {diffDays} 天
+        </span>
+      );
+    }
+  };
+
+  const isOverdue = () => {
+    if (!hazard.deadline) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(hazard.deadline);
+    deadline.setHours(0, 0, 0, 0);
+    return deadline < today;
+  };
+
+  const isAssigned = hazard.status !== 'pending';
+  const overdue = isOverdue();
+
   return (
     <div className="glass-card-hover overflow-hidden">
       <div className="relative h-36 overflow-hidden group">
@@ -295,18 +337,48 @@ function HazardCard({
         <h3 className="font-medium text-white line-clamp-1">{hazard.title}</h3>
         <p className="text-xs text-dark-400 mt-1 line-clamp-2 h-8">{hazard.description}</p>
 
+        {hazard.status === 'pending' && (
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+            <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+            <span className="text-xs text-yellow-400 font-medium">待分配整改责任人</span>
+          </div>
+        )}
+
         <div className="mt-3 pt-3 border-t border-dark-700/50 space-y-1.5">
-          {hazard.responsibleName && (
+          {isAssigned && (
             <div className="flex items-center gap-2 text-xs">
               <User className="w-3.5 h-3.5 text-dark-400 flex-shrink-0" />
-              <span className="text-dark-300 truncate">责任人：{hazard.responsibleName}</span>
+              <span className="text-dark-300 truncate">
+                责任人：{hazard.responsibleName || '未设置'}
+              </span>
             </div>
           )}
-          {hazard.deadline && (
+          {isAssigned && (
             <div className="flex items-center gap-2 text-xs">
-              <Calendar className="w-3.5 h-3.5 text-dark-400 flex-shrink-0" />
-              <span className="text-dark-300">截止：{hazard.deadline}</span>
+              <Calendar
+                className={cn(
+                  'w-3.5 h-3.5 flex-shrink-0',
+                  overdue ? 'text-red-400' : 'text-dark-400'
+                )}
+              />
+              <span className={cn('truncate', overdue ? 'text-red-400' : 'text-dark-300')}>
+                截止：{hazard.deadline || '未设置'}
+              </span>
+              {overdue && <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
+              {getDeadlineBadge()}
             </div>
+          )}
+          {!isAssigned && (
+            <>
+              <div className="flex items-center gap-2 text-xs">
+                <User className="w-3.5 h-3.5 text-dark-400 flex-shrink-0" />
+                <span className="text-dark-500 truncate">责任人：—</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <Calendar className="w-3.5 h-3.5 text-dark-400 flex-shrink-0" />
+                <span className="text-dark-500 truncate">截止：—</span>
+              </div>
+            </>
           )}
           <div className="flex items-center gap-2 text-xs">
             <Clock className="w-3.5 h-3.5 text-dark-400 flex-shrink-0" />
@@ -365,29 +437,94 @@ function CreateHazardModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [level, setLevel] = useState<Hazard['level']>('medium');
-  const [photoUrl, setPhotoUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [photoBase64, setPhotoBase64] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setTitle('');
       setDescription('');
       setLevel('medium');
-      setPhotoUrl(`https://picsum.photos/400/300?random=${Date.now()}`);
+      setSelectedFile(null);
+      setPreviewUrl('');
+      setPhotoBase64('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   }, [open]);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoBase64(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearFile = () => {
+    setSelectedFile(null);
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl('');
+    setPhotoBase64('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
   const handleSubmit = () => {
-    if (!title.trim()) return;
+    if (title.trim().length < 5) return;
+    if (description.trim().length < 10) return;
+
+    const finalPhotoUrl =
+      photoBase64 || `https://picsum.photos/400/300?random=${Date.now()}`;
+
     onSubmit({
       title: title.trim(),
-      description: description.trim() || '暂无描述',
+      description: description.trim(),
       level,
-      photoUrl:
-        photoUrl.trim() || `https://picsum.photos/400/300?random=${Date.now()}`,
+      photoUrl: finalPhotoUrl,
     });
   };
 
-  const isValid = title.trim().length > 0;
+  const titleValid = title.trim().length >= 5;
+  const descValid = description.trim().length >= 10;
+  const isValid = titleValid && descValid;
+
+  const titleTouched = title.length > 0;
+  const descTouched = description.length > 0;
+
+  const showTitleError = titleTouched && !titleValid;
+  const showDescError = descTouched && !descValid;
 
   return (
     <Modal
@@ -420,20 +557,46 @@ function CreateHazardModal({
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="请输入隐患标题，如：消防通道堆放杂物"
-            className="input-field"
+            placeholder="请输入隐患标题，如：消防通道堆放杂物（至少5个字）"
+            className={cn(
+              'input-field',
+              showTitleError && 'border-red-500/70 focus:border-red-500'
+            )}
+            maxLength={100}
           />
+          <div className="flex justify-between mt-1.5">
+            {showTitleError ? (
+              <p className="text-xs text-red-400">请填写隐患标题（至少5个字）</p>
+            ) : (
+              <p className="text-xs text-dark-500">至少 5 个字</p>
+            )}
+            <p className="text-xs text-dark-500">已输入 {title.trim().length}/100 字</p>
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-dark-200 mb-1.5">隐患描述</label>
+          <label className="block text-sm font-medium text-dark-200 mb-1.5">
+            隐患描述 <span className="text-fire-400">*</span>
+          </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="请详细描述隐患位置、情况等..."
+            placeholder="请详细描述隐患位置、情况等（至少10个字）"
             rows={4}
-            className="input-field resize-none"
+            className={cn(
+              'input-field resize-none',
+              showDescError && 'border-red-500/70 focus:border-red-500'
+            )}
+            maxLength={500}
           />
+          <div className="flex justify-between mt-1.5">
+            {showDescError ? (
+              <p className="text-xs text-red-400">请填写隐患描述（至少10个字）</p>
+            ) : (
+              <p className="text-xs text-dark-500">至少 10 个字</p>
+            )}
+            <p className="text-xs text-dark-500">已输入 {description.trim().length}/500 字</p>
+          </div>
         </div>
 
         <div>
@@ -464,32 +627,59 @@ function CreateHazardModal({
 
         <div>
           <label className="block text-sm font-medium text-dark-200 mb-1.5">
-            照片URL
+            隐患照片
           </label>
           <div className="space-y-2">
-            <div className="relative">
-              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
-              <input
-                type="text"
-                value={photoUrl}
-                onChange={(e) => setPhotoUrl(e.target.value)}
-                placeholder="https://picsum.photos/400/300?random=xxx"
-                className="input-field pl-9"
-              />
-            </div>
-            {photoUrl && (
-              <div className="relative rounded-lg overflow-hidden border border-dark-600">
-                <img
-                  src={photoUrl}
-                  alt="预览"
-                  className="w-full h-40 object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-dark-900/60 to-transparent pointer-events-none"></div>
-                <span className="absolute bottom-2 left-2 text-xs text-dark-300">图片预览</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleFileChange}
+            />
+
+            {previewUrl ? (
+              <div className="relative">
+                <div className="relative rounded-lg overflow-hidden border border-dark-600 aspect-video h-40">
+                  <img
+                    src={previewUrl}
+                    alt="预览"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-dark-900/60 to-transparent pointer-events-none"></div>
+                </div>
+                <button
+                  onClick={clearFile}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-dark-900/80 backdrop-blur-sm border border-dark-600 flex items-center justify-center text-dark-300 hover:text-white hover:bg-dark-800 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-dark-700/40 border border-dark-600/50">
+                  <ImageIcon className="w-4 h-4 text-dark-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-dark-200 truncate">{selectedFile?.name}</p>
+                    <p className="text-xs text-dark-500">{selectedFile ? formatFileSize(selectedFile.size) : ''}</p>
+                  </div>
+                </div>
               </div>
+            ) : (
+              <label className="block cursor-pointer">
+                <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-dark-600 hover:border-fire-500/50 transition-all aspect-video h-40 flex flex-col items-center justify-center bg-dark-700/30 group">
+                  <img
+                    src="https://picsum.photos/400/225?random=placeholder"
+                    alt="占位图"
+                    className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity"
+                  />
+                  <div className="absolute inset-0 bg-dark-900/50"></div>
+                  <div className="relative flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 rounded-full bg-dark-700/80 backdrop-blur-sm border border-dark-600 flex items-center justify-center group-hover:border-fire-500/50 transition-all">
+                      <Upload className="w-5 h-5 text-dark-300 group-hover:text-fire-400 transition-colors" />
+                    </div>
+                    <span className="text-sm text-dark-200 group-hover:text-white transition-colors">点击上传隐患照片</span>
+                    <span className="text-xs text-dark-500">支持 JPG、PNG、GIF 格式</span>
+                  </div>
+                </div>
+              </label>
             )}
           </div>
         </div>

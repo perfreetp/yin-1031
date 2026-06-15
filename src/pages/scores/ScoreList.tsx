@@ -148,6 +148,7 @@ export default function ScoreList() {
                 key={score.id}
                 score={score}
                 rank={index + 1}
+                retrainRecords={retrainRecords}
                 onRetrain={(s) => setConfirmScore(s)}
               />
             ))}
@@ -484,10 +485,12 @@ function StatCard({
 function ScoreRow({
   score,
   rank,
+  retrainRecords,
   onRetrain,
 }: {
   score: Score;
   rank: number;
+  retrainRecords: RetrainRecord[];
   onRetrain: (score: Score) => void;
 }) {
   const [showErrors, setShowErrors] = useState(false);
@@ -495,7 +498,7 @@ function ScoreRow({
   const scoreColor = score.totalScore >= 90 ? 'text-green-400' : score.totalScore >= 70 ? 'text-yellow-400' : 'text-red-400';
   const rankBg = rank === 1 ? 'bg-yellow-500 text-yellow-900' : rank === 2 ? 'bg-gray-300 text-gray-700' : rank === 3 ? 'bg-amber-600 text-amber-100' : 'bg-dark-600 text-dark-300';
 
-  const isRetrained = score.retrainCount > 0;
+  const hasBeenRetrained = retrainRecords.some((r) => r.originalScoreId === score.id);
 
   return (
     <div className="p-4 rounded-xl bg-dark-700/30 border border-dark-600/50 hover:border-dark-500/50 transition-colors">
@@ -555,17 +558,17 @@ function ScoreRow({
 
           {!score.passed && (
             <button
-              onClick={() => !isRetrained && onRetrain(score)}
-              disabled={isRetrained}
+              onClick={() => !hasBeenRetrained && onRetrain(score)}
+              disabled={hasBeenRetrained}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                isRetrained
+                hasBeenRetrained
                   ? 'bg-dark-600/50 text-dark-400 cursor-not-allowed'
                   : 'bg-fire-600 text-white hover:bg-fire-500 active:scale-95'
               }`}
-              title={isRetrained ? '已安排重训' : '安排重训'}
+              title={hasBeenRetrained ? '已安排重训' : '安排重训'}
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              {isRetrained ? '已安排重训' : '安排重训'}
+              {hasBeenRetrained ? '已安排重训' : '安排重训'}
             </button>
           )}
 

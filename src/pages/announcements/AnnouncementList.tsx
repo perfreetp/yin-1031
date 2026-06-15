@@ -51,6 +51,17 @@ export default function AnnouncementList() {
     }
   }, [toast.visible]);
 
+  useEffect(() => {
+    if (selectedAnnouncement) {
+      const latest = announcements.find((a) => a.id === selectedAnnouncement.id);
+      if (latest) {
+        setSelectedAnnouncement(latest);
+      } else {
+        setSelectedAnnouncement(null);
+      }
+    }
+  }, [announcements]);
+
   const filteredAnnouncements = announcements
     .filter((a) => {
       const matchSearch = a.title.toLowerCase().includes(searchText.toLowerCase());

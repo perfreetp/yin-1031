@@ -148,6 +148,42 @@ export interface RetrainRecord {
   createdAt: string;
 }
 
+export interface CheckInRecord {
+  personnelId: string;
+  personnelName: string;
+  checkedInAt: string;
+  deviceId?: string;
+  deviceName?: string;
+}
+
+export interface DrillExecutionState {
+  drillId: string;
+  step: 'signin' | 'running' | 'scoring' | 'done';
+  checkIns: CheckInRecord[];
+  participantResults: {
+    personnelId: string;
+    personnelName: string;
+    deviceId?: string;
+    deviceName?: string;
+    escapeTime: number;
+    errors: ErrorRecord[];
+    startTime?: string;
+  }[];
+  startedAt?: string;
+  endedAt?: string;
+}
+
+export const DEFAULT_ERROR_TYPES = [
+  { type: '逃生路线错误', description: '未按照指定逃生路线疏散' },
+  { type: '未低姿前行', description: '在烟雾区域未采取低姿或匍匐前进' },
+  { type: '灭火器使用错误', description: '灭火器使用步骤错误（拔-瞄-握-压）' },
+  { type: '未关闭防火门', description: '逃生后未及时关闭防火门阻断烟雾蔓延' },
+  { type: '烟雾识别错误', description: '未能正确识别有毒烟雾类型' },
+  { type: '未报警', description: '发现火情未第一时间按下手动报警按钮' },
+  { type: '未断电', description: '未及时切断相关区域电源和气源' },
+  { type: '乘电梯逃生', description: '火灾情况下错误选择乘坐电梯' },
+];
+
 export interface DepartmentStats {
   name: string;
   totalCount: number;

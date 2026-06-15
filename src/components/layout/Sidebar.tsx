@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
+  LayoutDashboard,
   Calendar,
   Users,
   MapPin,
@@ -14,6 +15,7 @@ import {
 import { useStore } from '@/store/useStore';
 
 const menuItems = [
+  { path: '/', label: '运营总览', icon: LayoutDashboard },
   { path: '/drills', label: '演练计划', icon: Calendar },
   { path: '/personnel', label: '人员管理', icon: Users },
   { path: '/scenarios', label: '场景管理', icon: MapPin },

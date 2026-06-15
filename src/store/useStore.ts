@@ -10,6 +10,8 @@ import {
   DepartmentStats,
   DeviceBooking,
   RetrainRecord,
+  DrillExecutionState,
+  ErrorRecord,
 } from '@/types';
 import { drillsData } from '@/data/drills';
 import { personnelData } from '@/data/personnel';
@@ -88,6 +90,7 @@ interface AppState {
   showDeviceBooking: Device | null;
   showDeviceBookingCalendar: boolean;
   showHazardAssign: Hazard | null;
+  activeExecution: DrillExecutionState | null;
 
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSelectedDrill: (drill: Drill | null) => void;
@@ -100,6 +103,15 @@ interface AppState {
   setShowDeviceBooking: (device: Device | null) => void;
   setShowDeviceBookingCalendar: (show: boolean) => void;
   setShowHazardAssign: (hazard: Hazard | null) => void;
+  setActiveExecution: (ex: DrillExecutionState | null) => void;
+
+  startDrillExecution: (drillId: string) => void;
+  executionCheckIn: (personnelId: string, deviceId?: string) => void;
+  executionSetParticipantResult: (
+    personnelId: string,
+    result: { escapeTime?: number; errors?: ErrorRecord[]; deviceId?: string; deviceName?: string }
+  ) => void;
+  executionGenerateScores: () => Score[];
 
   addDrill: (drill: Omit<Drill, 'id' | 'createdAt' | 'checkedInCount'>) => Drill;
   updateDrill: (id: string, drill: Partial<Drill>) => void;
@@ -148,6 +160,7 @@ export const useStore = create<AppState>((set, get) => {
     showDeviceBooking: null,
     showDeviceBookingCalendar: false,
     showHazardAssign: null,
+    activeExecution: null,
 
     setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
     setSelectedDrill: (drill) => set({ selectedDrill: drill }),
@@ -160,6 +173,120 @@ export const useStore = create<AppState>((set, get) => {
     setShowDeviceBooking: (device) => set({ showDeviceBooking: device }),
     setShowDeviceBookingCalendar: (show) => set({ showDeviceBookingCalendar: show }),
     setShowHazardAssign: (hazard) => set({ showHazardAssign: hazard }),
+    setActiveExecution: (ex) => set({ activeExecution: ex }),
+
+    startDrillExecution: (drillId) => {
+      const { drills, personnel, devices } = get();
+      const drill = drills.find((d) => d.id === drillId);
+      if (!drill) return;
+      const participants = drill.participantIds
+        .map((pid) => personnel.find((p) => p.id === pid))
+        .filter(Boolean) as Personnel[];
+      const participantResults = participants.map((p) => ({
+        personnelId: p.id,
+        personnelName: p.name,
+        escapeTime: 0,
+        errors: [],
+      }));
+      const availableDeviceIds = devices.filter((d) => d.status === 'available').map((d) => d.id);
+      set({
+        activeExecution: {
+          drillId,
+          step: 'signin',
+          checkIns: [],
+          participantResults,
+          startedAt: formatDateTime(),
+        },
+      });
+      const updatedDevices = devices.map((d, i) =>
+        participants[i] && availableDeviceIds.includes(d.id)
+          ? { ...d, status: 'in-use' as const, currentUser: participants[i].name }
+          : d
+      );
+      const anyInUse = updatedDevices.some((d, i) => participants[i] && d.status === 'in-use');
+      if (anyInUse) {
+        set({ devices: updatedDevices });
+        persist('devices', updatedDevices);
+      }
+      const updatedDrills = get().drills.map((d) =>
+        d.id === drillId ? { ...d, status: 'ongoing' as const } : d
+      );
+      set({ drills: updatedDrills });
+      persist('drills', updatedDrills);
+    },
+
+    executionCheckIn: (personnelId, deviceId) => {
+      const ex = get().activeExecution;
+      if (!ex) return;
+      const person = get().personnel.find((p) => p.id === personnelId);
+      let deviceName: string | undefined;
+      if (deviceId) {
+        const dev = get().devices.find((d) => d.id === deviceId);
+        deviceName = dev?.name;
+      }
+      const already = ex.checkIns.find((c) => c.personnelId === personnelId);
+      if (already) return;
+      const newCheckIns = [
+        ...ex.checkIns,
+        { personnelId, personnelName: person?.name || '', deviceId, deviceName, checkedInAt: formatDateTime() },
+      ];
+      set({
+        activeExecution: { ...ex, checkIns: newCheckIns },
+      });
+      const { drills } = get();
+      const updatedDrills = drills.map((d) =>
+        d.id === ex.drillId ? { ...d, checkedInCount: newCheckIns.length } : d
+      );
+      set({ drills: updatedDrills });
+      persist('drills', updatedDrills);
+    },
+
+    executionSetParticipantResult: (personnelId, result) => {
+      const ex = get().activeExecution;
+      if (!ex) return;
+      const newResults = ex.participantResults.map((r) =>
+        r.personnelId === personnelId ? { ...r, ...result } : r
+      );
+      set({ activeExecution: { ...ex, participantResults: newResults } });
+    },
+
+    executionGenerateScores: () => {
+      const ex = get().activeExecution;
+      if (!ex) return [];
+      const drill = get().drills.find((d) => d.id === ex.drillId);
+      const newScores: Score[] = ex.participantResults
+        .filter((r) => r.escapeTime > 0 || r.errors.length > 0)
+        .map((r) => {
+          const baseScore = Math.max(0, 100 - r.escapeTime * 0.15 - r.errors.length * 10);
+          const totalScore = Math.min(100, Math.round(baseScore));
+          const passed = totalScore >= 70;
+          return {
+            id: genId('sc'),
+            personnelId: r.personnelId,
+            personnelName: r.personnelName,
+            drillId: ex.drillId,
+            drillName: drill?.name,
+            totalScore,
+            escapeTime: r.escapeTime,
+            errors: r.errors,
+            passed,
+            completedAt: formatDateTime(),
+            retrainCount: 0,
+          };
+        });
+      if (newScores.length > 0) {
+        const scores = [...get().scores, ...newScores];
+        set({ scores });
+        persist('scores', scores);
+      }
+      const { drills } = get();
+      const updatedDrills = drills.map((d) =>
+        d.id === ex.drillId ? { ...d, status: 'completed' as const } : d
+      );
+      set({ drills: updatedDrills, activeExecution: null });
+      persist('drills', updatedDrills);
+      return newScores;
+    },
 
     addDrill: (drillData) => {
       const newDrill: Drill = {
