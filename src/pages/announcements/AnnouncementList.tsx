@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Bell, Plus, Pin, Calendar, User, ChevronRight, Search, Filter, AlertTriangle, Info, FileText, Megaphone } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bell, Plus, Pin, Calendar, User, ChevronRight, Search, AlertTriangle, Info, FileText, Megaphone, Edit, Trash2, CheckCircle, X, PinOff, LucideIcon } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import type { Announcement } from '@/types';
+import Modal from '@/components/Modal';
+import { formatDateTime } from '@/lib/utils';
 
 const typeConfig = {
   training: { label: '培训通知', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', icon: FileText },
@@ -10,26 +12,97 @@ const typeConfig = {
   info: { label: '知识科普', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: Info },
 };
 
+type ToastType = 'success' | 'error';
+
+interface ToastState {
+  message: string;
+  type: ToastType;
+  visible: boolean;
+}
+
 export default function AnnouncementList() {
-  const { announcements, setShowAnnouncementCreate } = useStore();
+  const {
+    announcements,
+    showAnnouncementCreate,
+    setShowAnnouncementCreate,
+    showAnnouncementEdit,
+    setShowAnnouncementEdit,
+    addAnnouncement,
+    updateAnnouncement,
+    deleteAnnouncement,
+    toggleAnnouncementPin,
+  } = useStore();
+
   const [searchText, setSearchText] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+  const [toast, setToast] = useState<ToastState>({ message: '', type: 'success', visible: false });
 
-  const filteredAnnouncements = announcements.filter((a) => {
-    const matchSearch = a.title.toLowerCase().includes(searchText.toLowerCase());
-    const matchType = typeFilter === 'all' || a.type === typeFilter;
-    return matchSearch && matchType;
-  });
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToast({ message, type, visible: true });
+  };
 
-  const pinnedAnnouncements = filteredAnnouncements.filter((a) => a.isPinned);
-  const normalAnnouncements = filteredAnnouncements.filter((a) => !a.isPinned);
+  useEffect(() => {
+    if (toast.visible) {
+      const timer = setTimeout(() => {
+        setToast((prev) => ({ ...prev, visible: false }));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.visible]);
+
+  const filteredAnnouncements = announcements
+    .filter((a) => {
+      const matchSearch = a.title.toLowerCase().includes(searchText.toLowerCase());
+      const matchType = typeFilter === 'all' || a.type === typeFilter;
+      return matchSearch && matchType;
+    })
+    .sort((a, b) => {
+      if (a.isPinned !== b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
+      return new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime();
+    });
 
   const stats = {
     total: announcements.length,
     pinned: announcements.filter((a) => a.isPinned).length,
     training: announcements.filter((a) => a.type === 'training').length,
     warning: announcements.filter((a) => a.type === 'warning').length,
+  };
+
+  const handleAddSuccess = () => {
+    showToast('公告发布成功');
+  };
+
+  const handleUpdateSuccess = () => {
+    showToast('公告编辑成功');
+    if (showAnnouncementEdit && selectedAnnouncement?.id === showAnnouncementEdit.id) {
+      const updated = announcements.find((a) => a.id === showAnnouncementEdit.id);
+      if (updated) setSelectedAnnouncement(updated);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('确定要删除这条公告吗？此操作不可恢复。')) {
+      deleteAnnouncement(id);
+      if (selectedAnnouncement?.id === id) {
+        setSelectedAnnouncement(null);
+      }
+      showToast('公告删除成功');
+    }
+  };
+
+  const handleTogglePin = (id: string) => {
+    toggleAnnouncementPin(id);
+    const ann = announcements.find((a) => a.id === id);
+    if (ann) {
+      showToast(ann.isPinned ? '已取消置顶' : '已置顶');
+    }
+    if (selectedAnnouncement?.id === id) {
+      const updated = { ...selectedAnnouncement, isPinned: !selectedAnnouncement.isPinned };
+      setSelectedAnnouncement(updated);
+    }
   };
 
   return (
@@ -82,44 +155,32 @@ export default function AnnouncementList() {
           </div>
 
           <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-            {pinnedAnnouncements.length > 0 && (
-              <div className="space-y-3">
-                {pinnedAnnouncements.map((announcement) => (
-                  <AnnouncementItem
-                    key={announcement.id}
-                    announcement={announcement}
-                    isPinned={true}
-                    selected={selectedAnnouncement?.id === announcement.id}
-                    onClick={() => setSelectedAnnouncement(announcement)}
-                  />
-                ))}
-              </div>
-            )}
-            {normalAnnouncements.length > 0 && (
-              <div className="space-y-3">
-                {normalAnnouncements.map((announcement) => (
+            {filteredAnnouncements.length > 0 ? (
+              filteredAnnouncements.map((announcement) => (
                 <AnnouncementItem
                   key={announcement.id}
                   announcement={announcement}
-                  isPinned={false}
                   selected={selectedAnnouncement?.id === announcement.id}
                   onClick={() => setSelectedAnnouncement(announcement)}
                 />
-              ))}
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <Megaphone className="w-12 h-12 text-dark-600 mx-auto mb-3" />
+                <p className="text-dark-400">暂无公告数据</p>
               </div>
             )}
           </div>
-
-          {filteredAnnouncements.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-dark-400">暂无公告数据</p>
-            </div>
-          )}
         </div>
 
         <div className="glass-card p-4">
           {selectedAnnouncement ? (
-            <AnnouncementDetail announcement={selectedAnnouncement} />
+            <AnnouncementDetail
+              announcement={selectedAnnouncement}
+              onEdit={() => setShowAnnouncementEdit(selectedAnnouncement)}
+              onDelete={() => handleDelete(selectedAnnouncement.id)}
+              onTogglePin={() => handleTogglePin(selectedAnnouncement.id)}
+            />
           ) : (
             <div className="h-full min-h-96 flex flex-col items-center justify-center text-center">
               <Megaphone className="w-16 h-16 text-dark-600 mb-4" />
@@ -128,11 +189,56 @@ export default function AnnouncementList() {
           )}
         </div>
       </div>
+
+      {(showAnnouncementCreate || showAnnouncementEdit) && (
+        <AnnouncementFormModal
+          mode={showAnnouncementEdit ? 'edit' : 'create'}
+          initialData={showAnnouncementEdit || undefined}
+          onClose={() => {
+            setShowAnnouncementCreate(false);
+            setShowAnnouncementEdit(null);
+          }}
+          onSubmit={(data) => {
+            if (showAnnouncementEdit) {
+              updateAnnouncement(showAnnouncementEdit.id, data);
+              handleUpdateSuccess();
+            } else {
+              addAnnouncement(data);
+              handleAddSuccess();
+            }
+          }}
+        />
+      )}
+
+      {toast.visible && (
+        <div className="fixed bottom-6 right-6 z-50 animate-fade-in-up">
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${
+              toast.type === 'success'
+                ? 'bg-green-500/20 border-green-500/30 text-green-400'
+                : 'bg-red-500/20 border-red-500/30 text-red-400'
+            }`}
+          >
+            {toast.type === 'success' ? (
+              <CheckCircle className="w-5 h-5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5" />
+            )}
+            <span className="text-sm font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToast((prev) => ({ ...prev, visible: false }))}
+              className="ml-2 opacity-70 hover:opacity-100 transition-opacity"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: number; icon: any; color: string }) {
+function StatCard({ label, value, icon: Icon, color }: { label: string; value: number; icon: LucideIcon; color: string }) {
   return (
     <div className="stat-card">
       <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${color} opacity-10 rounded-full -translate-y-1/2 translate-x-1/2`}></div>
@@ -151,12 +257,10 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: n
 
 function AnnouncementItem({
   announcement,
-  isPinned,
   selected,
   onClick,
 }: {
   announcement: Announcement;
-  isPinned: boolean;
   selected: boolean;
   onClick: () => void;
 }) {
@@ -178,8 +282,9 @@ function AnnouncementItem({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {isPinned && <Pin className="w-3.5 h-3.5 text-fire-400 fill-fire-400" />}
+            {announcement.isPinned && <Pin className="w-3.5 h-3.5 text-fire-400 fill-fire-400" />}
             <h3 className="font-medium text-white truncate">{announcement.title}</h3>
+            <span className={`badge ${type.color} border flex-shrink-0`}>{type.label}</span>
           </div>
           <p className="text-sm text-dark-400 mt-1 line-clamp-2">{announcement.content}</p>
           <div className="flex items-center gap-4 mt-2 text-xs text-dark-500">
@@ -199,7 +304,17 @@ function AnnouncementItem({
   );
 }
 
-function AnnouncementDetail({ announcement }: { announcement: Announcement }) {
+function AnnouncementDetail({
+  announcement,
+  onEdit,
+  onDelete,
+  onTogglePin,
+}: {
+  announcement: Announcement;
+  onEdit: () => void;
+  onDelete: () => void;
+  onTogglePin: () => void;
+}) {
   const type = typeConfig[announcement.type];
   const TypeIcon = type.icon;
 
@@ -209,10 +324,11 @@ function AnnouncementDetail({ announcement }: { announcement: Announcement }) {
         <div className={`w-12 h-12 rounded-xl ${type.color} border flex items-center justify-center`}>
           <TypeIcon className="w-6 h-6" />
         </div>
-        <div>
-          <div className="flex items-center gap-2">
-            {announcement.isPinned && <Pin className="w-4 h-4 text-fire-400 fill-fire-400" />}
-            <h2 className="text-lg font-semibold text-white">{announcement.title}</h2>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {announcement.isPinned && <Pin className="w-4 h-4 text-fire-400 fill-fire-400 flex-shrink-0" />}
+            <h2 className="text-lg font-semibold text-white truncate">{announcement.title}</h2>
+            <span className={`badge ${type.color} border flex-shrink-0`}>{type.label}</span>
           </div>
           <div className="flex items-center gap-3 mt-1 text-xs text-dark-400">
             <span className="flex items-center gap-1">
@@ -221,7 +337,7 @@ function AnnouncementDetail({ announcement }: { announcement: Announcement }) {
             </span>
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              {announcement.publishDate}
+              {formatDateTime(new Date(announcement.publishDate))}
             </span>
           </div>
         </div>
@@ -242,10 +358,183 @@ function AnnouncementDetail({ announcement }: { announcement: Announcement }) {
         </div>
       )}
 
-      <div className="mt-4 flex gap-2">
-        <button className="flex-1 btn-secondary text-sm">编辑公告</button>
-        <button className="flex-1 btn-secondary text-sm text-red-400 border-red-500/30">删除</button>
+      <div className="mt-4 pt-4 border-t border-dark-700 flex flex-wrap gap-2">
+        <button onClick={onEdit} className="flex-1 btn-secondary text-sm flex items-center justify-center gap-2 min-w-[100px]">
+          <Edit className="w-4 h-4" />
+          编辑公告
+        </button>
+        <button
+          onClick={onTogglePin}
+          className="flex-1 btn-secondary text-sm flex items-center justify-center gap-2 min-w-[100px]"
+        >
+          {announcement.isPinned ? (
+            <>
+              <PinOff className="w-4 h-4" />
+              取消置顶
+            </>
+          ) : (
+            <>
+              <Pin className="w-4 h-4" />
+              置顶
+            </>
+          )}
+        </button>
+        <button
+          onClick={onDelete}
+          className="flex-1 btn-secondary text-sm text-red-400 border-red-500/30 hover:bg-red-500/10 flex items-center justify-center gap-2 min-w-[100px]"
+        >
+          <Trash2 className="w-4 h-4" />
+          删除
+        </button>
       </div>
     </div>
+  );
+}
+
+interface AnnouncementFormData {
+  title: string;
+  content: string;
+  type: 'training' | 'notice' | 'warning' | 'info';
+  isPinned: boolean;
+  expireDate?: string;
+  author: string;
+}
+
+interface AnnouncementFormModalProps {
+  mode: 'create' | 'edit';
+  initialData?: Announcement;
+  onClose: () => void;
+  onSubmit: (data: Omit<Announcement, 'id' | 'publishDate'>) => void;
+}
+
+function AnnouncementFormModal({ mode, initialData, onClose, onSubmit }: AnnouncementFormModalProps) {
+  const [formData, setFormData] = useState<AnnouncementFormData>({
+    title: initialData?.title || '',
+    content: initialData?.content || '',
+    type: initialData?.type || 'notice',
+    isPinned: initialData?.isPinned || false,
+    expireDate: initialData?.expireDate || '',
+    author: initialData?.author || '',
+  });
+  const [errors, setErrors] = useState<Partial<Record<keyof AnnouncementFormData, string>>>({});
+
+  const validate = () => {
+    const newErrors: Partial<Record<keyof AnnouncementFormData, string>> = {};
+    if (!formData.title.trim()) newErrors.title = '请输入公告标题';
+    if (!formData.content.trim()) newErrors.content = '请输入公告内容';
+    if (!formData.author.trim()) newErrors.author = '请输入作者';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (!validate()) return;
+    const submitData: Omit<Announcement, 'id' | 'publishDate'> = {
+      title: formData.title.trim(),
+      content: formData.content.trim(),
+      type: formData.type,
+      isPinned: formData.isPinned,
+      author: formData.author.trim(),
+    };
+    if (formData.expireDate) {
+      submitData.expireDate = formData.expireDate;
+    }
+    onSubmit(submitData);
+  };
+
+  return (
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={mode === 'create' ? '发布公告' : '编辑公告'}
+      subtitle={mode === 'create' ? '填写公告信息后点击发布' : '修改公告信息后保存'}
+      size="lg"
+      footer={
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="btn-secondary">
+            取消
+          </button>
+          <button onClick={handleSubmit} className="btn-primary">
+            {mode === 'create' ? '发布公告' : '保存修改'}
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-dark-200 mb-1.5">公告标题 <span className="text-red-400">*</span></label>
+          <input
+            type="text"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            placeholder="请输入公告标题"
+            className={`input-field ${errors.title ? 'border-red-500 focus:border-red-500 focus:ring-red-500/50' : ''}`}
+          />
+          {errors.title && <p className="mt-1 text-xs text-red-400">{errors.title}</p>}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-dark-200 mb-1.5">公告类型 <span className="text-red-400">*</span></label>
+            <select
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as AnnouncementFormData['type'] })}
+              className="input-field"
+            >
+              <option value="training">培训通知</option>
+              <option value="notice">通知公告</option>
+              <option value="warning">安全警示</option>
+              <option value="info">知识科普</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-dark-200 mb-1.5">作者 <span className="text-red-400">*</span></label>
+            <input
+              type="text"
+              value={formData.author}
+              onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+              placeholder="请输入作者名称"
+              className={`input-field ${errors.author ? 'border-red-500 focus:border-red-500 focus:ring-red-500/50' : ''}`}
+            />
+            {errors.author && <p className="mt-1 text-xs text-red-400">{errors.author}</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-dark-200 mb-1.5">有效期（可选）</label>
+            <input
+              type="date"
+              value={formData.expireDate}
+              onChange={(e) => setFormData({ ...formData, expireDate: e.target.value })}
+              className="input-field"
+            />
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={formData.isPinned}
+                onChange={(e) => setFormData({ ...formData, isPinned: e.target.checked })}
+                className="w-4 h-4 rounded bg-dark-700 border-dark-600 text-fire-600 focus:ring-fire-500 focus:ring-offset-0"
+              />
+              <span className="text-sm text-dark-200">置顶公告</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-dark-200 mb-1.5">公告内容 <span className="text-red-400">*</span></label>
+          <textarea
+            value={formData.content}
+            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+            placeholder="请输入公告内容..."
+            rows={8}
+            className={`input-field resize-none ${errors.content ? 'border-red-500 focus:border-red-500 focus:ring-red-500/50' : ''}`}
+          />
+          {errors.content && <p className="mt-1 text-xs text-red-400">{errors.content}</p>}
+        </div>
+      </div>
+    </Modal>
   );
 }

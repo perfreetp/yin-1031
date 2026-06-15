@@ -117,6 +117,37 @@ export interface Announcement {
   author: string;
 }
 
+export interface DeviceBooking {
+  id: string;
+  deviceId: string;
+  deviceName?: string;
+  personnelId: string;
+  personnelName: string;
+  startTime: string;
+  endTime: string;
+  purpose: string;
+  status: 'upcoming' | 'active' | 'completed' | 'cancelled';
+  createdAt: string;
+}
+
+export interface HazardAssignmentData {
+  responsibleId: string;
+  responsibleName: string;
+  deadline: string;
+}
+
+export interface RetrainRecord {
+  id: string;
+  originalScoreId: string;
+  personnelId: string;
+  personnelName: string;
+  originalDrillId: string;
+  newDrillId: string;
+  newDrillName: string;
+  reason: string;
+  createdAt: string;
+}
+
 export interface DepartmentStats {
   name: string;
   totalCount: number;
